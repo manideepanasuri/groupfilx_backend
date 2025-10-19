@@ -5,6 +5,8 @@
 .AppleDouble
 .LSOverride
 
+.idea/
+
 # Icon must end with two \r
 Icon
 
@@ -87,4 +89,5 @@ local_settings.py
 .venv
 
 .env
+movielens_dataset/
 db.sqlite3
