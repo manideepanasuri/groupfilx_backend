@@ -91,3 +91,4 @@ local_settings.py
 .env
 movielens_dataset/
 db.sqlite3
+movielens_dataset.zip

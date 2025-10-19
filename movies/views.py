@@ -5,10 +5,11 @@ from rest_framework import permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from movies.ml_model import recommend_movies_from_ratings
+from movies.ml_model import recommend_movies
 from movies.models import *
 from users.models import CustomUser
 from .helpers import write_rating_to_csv
+from .serializers import *
 
 
 # Create your views here.
@@ -34,7 +35,7 @@ class Recommendation(APIView):
 
         # Case 2: Enough ratings, use recommendation model
         user_ratings = {int(r.movie.movieId): r.rating for r in ratings}
-        recommended_ids = recommend_movies_from_ratings(user_ratings, 50)
+        recommended_ids = recommend_movies(user_ratings, 50)
 
         recommended_ids_sample = random.sample(recommended_ids, min(5, len(recommended_ids)))
         #recommended_ids_sample = recommended_ids[:5]
@@ -45,7 +46,7 @@ class Recommendation(APIView):
 from rest_framework import generics
 from rest_framework import filters
 from .models import Movie
-from .serializers import MovieSerializer
+from .serializers import MovieSerializer, GenreSerializer
 from .filters import MovieFilter  # Import your custom filter
 
 
@@ -101,9 +102,6 @@ class AddRatingView(APIView):
                 Rating.objects.filter(user=user, movie=movie).update(rating=rating)
             else:
                 Rating.objects.create(user=user, movie=movie, rating=rating)
-            ratin=Rating.objects.get(user=user, movie=movie)
-            new_row={"userId":"_"+str(ratin.user.id), "movieId":ratin.movie.movieId, "rating":ratin.rating,"timestamp":int(ratin.timestamp.timestamp())}
-            write_rating_to_csv(new_row)
             return Response({'message': 'Rating added successfully'}, status=status.HTTP_201_CREATED)
         except Exception as e:
             print(e)
@@ -113,11 +111,7 @@ class AddRatingView(APIView):
         if not Rating.objects.filter(id=rating_id).exists() :
             return Response({'message': 'Invalid Query'}, status=status.HTTP_400_BAD_REQUEST)
         try:
-            rating = Rating.objects.get(id=rating_id)
-            new_row = {"userId": "_"+str(rating.user.id), "movieId": rating.movie.movieId, "rating": 0,"timestamp": int(rating.timestamp.timestamp())}
-
             Rating.objects.filter(id=rating_id).delete()
-            write_rating_to_csv(new_row)
             return Response({'message': 'Rating deleted successfully'}, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({'message': str(e)}, status=status.HTTP_400_BAD_REQUEST)
@@ -144,5 +138,32 @@ class AddCommentView(APIView):
         try:
             Comments.objects.filter(id=comment_id).delete()
             return Response({'message': 'Rating deleted successfully'}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({'message': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+class GetAllGenresView(APIView):
+    permission_classes = (permissions.AllowAny,)
+    def get(self, request):
+        try:
+            genres = Genre.objects.all()
+            data = GenreSerializer(genres, many=True).data
+            return Response(data, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({'message': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+class AllMovieDetailsView(APIView):
+    permission_classes = (permissions.IsAuthenticated,)
+    def get(self, request):
+        try:
+            user=request.user
+            movie_id=request.data['movie_id']
+            movie = Movie.objects.get(id=movie_id)
+            data=MovieSerializer2(movie).data
+            if Rating.objects.filter(user=user, movie=movie).exists():
+                rating=Rating.objects.get(user=user, movie=movie)
+                data["rating"]=rating.rating
+            else:
+                data["rating"]=0
+            return Response(data, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({'message': str(e)}, status=status.HTTP_400_BAD_REQUEST)

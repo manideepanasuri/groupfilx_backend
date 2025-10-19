@@ -35,6 +35,7 @@ class MovieAdmin(admin.ModelAdmin):
         'original_title',
         'overview',  # Adding overview for broader search context
         'imdb_id',  # Useful for direct lookup
+        'movieId',
     )
 
     # --- 3. Sorting (Ordering) ---
