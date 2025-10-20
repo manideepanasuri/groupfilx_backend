@@ -5,6 +5,7 @@ from rest_framework import permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from groupchat.models import Group
 from movies.ml_model import recommend_movies
 from movies.models import *
 from users.models import CustomUser
@@ -182,3 +183,51 @@ class AllMovieDetailsView(APIView):
             return Response(data, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({'message': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+
+class GroupRecommendation(APIView):
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def post(self, request):
+        user = request.user
+        group_id=request.data.get('group_id')
+        # --- 1. Verify group and membership ---
+        try:
+            group = Group.objects.get(id=group_id)
+        except Group.DoesNotExist:
+            return Response({"error": "Group not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        if user not in group.members.all() and user != group.admin:
+            return Response({"error": "You are not part of this group"}, status=status.HTTP_403_FORBIDDEN)
+
+        # --- 2. Collect all group member ratings ---
+        group_members = list(group.members.all()) + [group.admin]
+        group_ratings = Rating.objects.filter(user__in=group_members)
+
+        if not group_ratings.exists():
+            # No ratings -> fallback to random top-rated movies
+            top_movies = list(Movie.objects.order_by('-rating')[:50])
+            recommended = random.sample(top_movies, min(5, len(top_movies)))
+            serializer = MovieSerializer(recommended, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        # --- 3. Combine ratings (average per movie) ---
+        movie_ratings = {}
+        for rating in group_ratings:
+            movie_id = int(rating.movie.movieId)
+            if movie_id not in movie_ratings:
+                movie_ratings[movie_id] = []
+            movie_ratings[movie_id].append(rating.rating)
+
+        # Average the ratings
+        avg_ratings = {mid: sum(rates)/len(rates) for mid, rates in movie_ratings.items()}
+
+        # --- 4. Pass averaged ratings to recommender ---
+        recommended_ids = recommend_movies(avg_ratings, top_n=5)
+
+        recommended_ids_sample = random.sample(recommended_ids, min(5, len(recommended_ids)))
+        # --- 5. Fetch and serialize movies ---
+        recommended_movies = Movie.objects.filter(movieId__in=recommended_ids_sample)
+        serializer = MovieSerializer(recommended_movies, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)

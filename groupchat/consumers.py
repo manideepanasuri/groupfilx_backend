@@ -125,6 +125,22 @@ class ChatConsumer(AsyncWebsocketConsumer):
                         "message": "Only the poll creator or group admin can close this poll."
                     }))
 
+            case 'poll_modify':
+                poll_id = data.get("poll_id")
+                movie_ids = data.get("movie_ids", [])
+                updated_poll = await self.update_poll(poll_id, user.id, movie_ids)
+
+                if updated_poll:
+                    await self.channel_layer.group_send(self.room_group_name, {
+                        "type": "poll_update",
+                        "poll": updated_poll,
+                    })
+                else:
+                    await self.send(text_data=json.dumps({
+                        "type": "error",
+                        "message": "Only the poll creator or group admin can update this poll."
+                    }))
+
     # ===================== EVENT HANDLERS =====================
     async def chat_message(self, event):
         await self.send(text_data=json.dumps({
@@ -228,3 +244,33 @@ class ChatConsumer(AsyncWebsocketConsumer):
             poll.save()
             return True
         return False
+
+    @database_sync_to_async
+    def update_poll(self, poll_id, user_id, movie_ids):
+        """
+        Update the poll options (movies) if the user is the poll creator or group admin.
+        Existing votes are kept only if the option remains.
+        """
+        try:
+            poll = Poll.objects.get(id=poll_id)
+            user = User.objects.get(id=user_id)
+            if poll.created_by != user and poll.group.admin != user:
+                return None  # not allowed
+
+            existing_options = {opt.movie.id: opt for opt in poll.options.all()}
+
+            # Remove options that are no longer in movie_ids
+            for mid in list(existing_options.keys()):
+                if mid not in movie_ids:
+                    existing_options[mid].delete()
+
+            # Add new movie options
+            for mid in movie_ids:
+                if mid not in existing_options:
+                    movie = Movie.objects.get(id=mid)
+                    PollOption.objects.create(poll=poll, movie=movie)
+
+            return PollSerializer(poll).data
+        except Exception as e:
+            print(e)
+            return None

@@ -16,8 +16,8 @@ class CreateGroupView(APIView):
 
     def get(self, request):
         user=request.user
-        group=Group.objects.create(user=user)
-        serializer=GroupSerializer(group)
+        group=Group.objects.filter(members=user)
+        serializer=GroupSerializer(group,many=True)
         return Response(serializer.data, status=HTTP_200_OK)
 
     def post(self, request):

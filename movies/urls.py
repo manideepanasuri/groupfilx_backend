@@ -10,4 +10,6 @@ urlpatterns = [
     path('comment/',AddCommentView.as_view(), name='comment'),
     path('genres/', GetAllGenresView.as_view(), name='genres'),
     path('getmovie/', AllMovieDetailsView.as_view(), name='getmovie'),
+    path('grouprecomendations/', GroupRecommendation.as_view(), name='grouprecomendations'),
+
 ]
