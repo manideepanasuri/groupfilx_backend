@@ -15,24 +15,22 @@ def load_model(model_path):
     model.eval()
     return model, num_movies
 
+ratings_csv_path = os.path.join(settings.BASE_DIR, "movielens_dataset", "filtered_ratings.csv")
+model_path = os.path.join(settings.BASE_DIR, "movielens_dataset", "ml_model_ncf_full.pth")
 
+# Load model
+model, _ = load_model(model_path)
+
+# Load dataset to build movie index map
+data = pd.read_csv(ratings_csv_path)
+data = data.sort_values('timestamp').drop_duplicates(['userId', 'movieId'], keep='last')
+data['movie_idx'] = data['movieId'].astype('category').cat.codes
+movie_id_map = dict(zip(data['movieId'], data['movie_idx']))
 # ---- Recommendation function ----
 def recommend_movies(user_ratings_dict, top_n=10):
     """
     user_ratings_dict: {movieId: rating} for a new user
     """
-    ratings_csv_path = os.path.join(settings.BASE_DIR, "movielens_dataset", "filtered_ratings_small.csv")
-    model_path = os.path.join(settings.BASE_DIR, "movielens_dataset", "ml_model_ncf.pth")
-
-    # Load model
-    model, _ = load_model(model_path)
-
-    # Load dataset to build movie index map
-    data = pd.read_csv(ratings_csv_path)
-    data = data.sort_values('timestamp').drop_duplicates(['userId', 'movieId'], keep='last')
-    data['movie_idx'] = data['movieId'].astype('category').cat.codes
-    movie_id_map = dict(zip(data['movieId'], data['movie_idx']))
-
     # --- Filter out unseen movies from input ---
     valid_rated = {m: r for m, r in user_ratings_dict.items() if m in movie_id_map}
     if not valid_rated:

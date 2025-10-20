@@ -41,22 +41,30 @@ class NCF(nn.Module):
 
 
 # ---- Training Function ----
-def train_model(epochs=20, batch_size=256, lr=0.001, embedding_dim=50):
-    ratings_csv_path = os.path.join(settings.BASE_DIR, "movielens_dataset", "filtered_ratings_small.csv")
-    save_path = os.path.join(settings.BASE_DIR, "movielens_dataset", "ml_model_ncf.pth")
-    # Load dataset
-    data = pd.read_csv(ratings_csv_path)
-    data = data.sort_values('timestamp').drop_duplicates(['userId', 'movieId'], keep='last')
+def train_model(epochs=20, batch_size=256, lr=0.005, embedding_dim=50):
+    ratings_csv_path = os.path.join(settings.BASE_DIR, "movielens_dataset", "filtered_ratings.csv")
+    save_path = os.path.join(settings.BASE_DIR, "movielens_dataset", "ml_model_ncf_full.pth")
+
+    # --- Load dataset safely ---
+    # Read only the needed columns
+    cols = ['userId', 'movieId', 'rating', 'timestamp']
+    try:
+        data = pd.read_csv(ratings_csv_path, usecols=cols)
+    except Exception as e:
+        print("Error reading CSV:", e)
+        return None, None
+    print("csv reading completed")
+    # Drop duplicate ratings for the same user/movie (keep latest)
+    #data = data.sort_values('timestamp').drop_duplicates(['userId', 'movieId'], keep='last')
 
     # Map movieId to indices
     data['movie_idx'] = data['movieId'].astype('category').cat.codes
     num_movies = data['movie_idx'].nunique()
-
+    print("num_movies", num_movies)
     # Train/test split
-    train_df, test_df = train_test_split(data, test_size=0.2, random_state=42)
-    train_loader = DataLoader(MovieRatingDataset(train_df), batch_size=batch_size, shuffle=True)
-    test_loader = DataLoader(MovieRatingDataset(test_df), batch_size=batch_size, shuffle=False)
+    train_loader = DataLoader(MovieRatingDataset(data), batch_size=batch_size, shuffle=True)
 
+    print("loding completed")
     # Device
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -64,14 +72,14 @@ def train_model(epochs=20, batch_size=256, lr=0.001, embedding_dim=50):
     model = NCF(num_movies, embedding_dim).to(device)
     criterion = nn.MSELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-
+    print("starting training")
     # Training loop
     for epoch in range(epochs):
         model.train()
         train_loss = 0
+        count=0
         for movies, ratings in train_loader:
             movies, ratings = movies.to(device), ratings.to(device)
-            # Create dummy user embedding (zeros)
             user_emb = torch.zeros((movies.size(0), embedding_dim), device=device)
             optimizer.zero_grad()
             outputs = model(user_emb, movies)
@@ -79,12 +87,13 @@ def train_model(epochs=20, batch_size=256, lr=0.001, embedding_dim=50):
             loss.backward()
             optimizer.step()
             train_loss += loss.item() * movies.size(0)
+            count+=1
+            if count % 1000 == 0:
+                print("training loss: ", train_loss)
         train_loss /= len(train_loader.dataset)
         print(f"Epoch {epoch + 1}/{epochs}, Train Loss: {train_loss:.4f}")
 
     # Save model
-    if save_path is None:
-        save_path = os.path.join(os.getcwd(), "ml_model_ncf.pth")
     torch.save({
         'model_state_dict': model.state_dict(),
         'num_movies': num_movies
@@ -92,6 +101,3 @@ def train_model(epochs=20, batch_size=256, lr=0.001, embedding_dim=50):
     print(f"Model saved to {save_path}")
 
     return model, data
-
-
-
