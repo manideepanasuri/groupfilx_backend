@@ -20,10 +20,30 @@ class Recommendation(APIView):
     def get(self, request):
         user = request.user
         ratings = Rating.objects.filter(user=user)
+        try:
 
-        # Case 1: Not enough ratings (less than 3)
-        if ratings.count() < 3:
-            # Get top 50 movies sorted by rating
+            # Case 1: Not enough ratings (less than 3)
+            if ratings.count() < 3:
+                # Get top 50 movies sorted by rating
+                top_movies = list(Movie.objects.order_by('-popularity')[:50])
+
+                # Randomly select 5
+                recommended_movies = random.sample(top_movies, min(5, len(top_movies)))
+
+                # Serialize
+                serializer = MovieSerializer(recommended_movies, many=True)
+                return Response(serializer.data, status=status.HTTP_200_OK)
+
+            # Case 2: Enough ratings, use recommendation model
+            user_ratings = {int(r.movie.movieId): r.rating for r in ratings}
+            recommended_ids = recommend_movies(user_ratings, 50)
+
+            recommended_ids_sample = random.sample(recommended_ids, min(5, len(recommended_ids)))
+            #recommended_ids_sample = recommended_ids[:5]
+            movies = Movie.objects.filter(movieId__in=recommended_ids_sample)
+            serializer = MovieSerializer(movies, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except ValueError:
             top_movies = list(Movie.objects.order_by('-popularity')[:50])
 
             # Randomly select 5
@@ -32,16 +52,11 @@ class Recommendation(APIView):
             # Serialize
             serializer = MovieSerializer(recommended_movies, many=True)
             return Response(serializer.data, status=status.HTTP_200_OK)
+        except Exception as e:
+            print(e)
+            return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-        # Case 2: Enough ratings, use recommendation model
-        user_ratings = {int(r.movie.movieId): r.rating for r in ratings}
-        recommended_ids = recommend_movies(user_ratings, 50)
 
-        recommended_ids_sample = random.sample(recommended_ids, min(5, len(recommended_ids)))
-        #recommended_ids_sample = recommended_ids[:5]
-        movies = Movie.objects.filter(movieId__in=recommended_ids_sample)
-        serializer = MovieSerializer(movies, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
 
 from rest_framework import generics
 from rest_framework import filters
