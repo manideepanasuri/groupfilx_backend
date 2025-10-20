@@ -113,12 +113,12 @@ class RemoveUserFromGroupView(APIView):
         if request.user != group.admin:
             return Response({"error": "Only admin can remove members."}, status=status.HTTP_403_FORBIDDEN)
 
-        user_id = request.data.get("user_id")
-        if not user_id:
-            return Response({"error": "User ID is required."}, status=status.HTTP_400_BAD_REQUEST)
+        user_email = request.data.get("user_email")
+        if not user_email:
+            return Response({"error": "User email is required."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            user_to_remove = User.objects.get(id=user_id)
+            user_to_remove = User.objects.get(email=user_email)
         except User.DoesNotExist:
             return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
 

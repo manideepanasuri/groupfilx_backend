@@ -223,19 +223,36 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
     @database_sync_to_async
     def record_vote(self, poll_id, user_id, movie_id):
-        poll = Poll.objects.get(id=poll_id)
-        user = User.objects.get(id=user_id)
-        if not poll.is_active:
+        try:
+            poll = Poll.objects.get(id=poll_id)
+            user = User.objects.get(id=user_id)
+            if not poll.is_active:
+                return False
+
+            # Find all options for this poll
+            options = PollOption.objects.filter(poll=poll)
+
+            # Remove user vote from any previous options
+            for opt in options:
+                if user in opt.votes.all():
+                    opt.votes.remove(user)
+
+            # Safely get the selected poll option
+            op = options.filter(movie_id=movie_id).first()
+            if not op:
+                print(f"[WARN] No PollOption found for poll {poll_id}, movie {movie_id}")
+                return False  # gracefully stop instead of throwing DoesNotExist
+
+            # Add the vote
+            op.votes.add(user)
+            print(f"[VOTE] {user.username} voted for {op.movie.title} in poll {poll.title}")
+            return True
+
+        except (Poll.DoesNotExist, User.DoesNotExist):
             return False
-
-        options = PollOption.objects.filter(poll=poll)
-        for opt in options:
-            if user in opt.votes.all():
-                opt.votes.remove(user)
-
-        selected = options.get(movie_id=movie_id)
-        selected.votes.add(user)
-        return True
+        except Exception as e:
+            print(f"[ERROR] Unexpected error in record_vote: {e}")
+            return False
 
     @database_sync_to_async
     def close_poll(self, poll_id, user_id):

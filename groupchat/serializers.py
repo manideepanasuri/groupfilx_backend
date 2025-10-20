@@ -39,10 +39,11 @@ class MovieSerializer2(serializers.ModelSerializer):
 class PollOptionSerializer(serializers.ModelSerializer):
     movie = MovieSerializer2(read_only=True)
     votes_count = serializers.SerializerMethodField()
+    votes=UserSerializer(many=True, read_only=True)
 
     class Meta:
         model = PollOption
-        fields = ["id", "movie", "votes_count"]
+        fields = ["id", "movie", "votes_count","votes"]
 
     def get_votes_count(self, obj):
         return obj.votes.count()

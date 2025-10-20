@@ -6,3 +6,5 @@ from groupchat.models import *
 
 admin.site.register(Group)
 admin.site.register(Message)
+admin.site.register(Poll)
+admin.site.register(PollOption)
