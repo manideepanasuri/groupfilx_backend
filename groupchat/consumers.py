@@ -183,6 +183,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
         return {
             "id": msg.id,
             "sender_id": msg.sender.id,
+            "sender_email": msg.sender.email,
             "sender_name": msg.sender.name,
             "content": msg.content,
             "timestamp": msg.timestamp.isoformat()
@@ -194,6 +195,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
         return [{
             "id": m.id,
             "sender_id": m.sender.id,
+            "sender_email": m.sender.email,
             "sender_name": m.sender.name,
             "content": m.content,
             "timestamp": m.timestamp.isoformat()
