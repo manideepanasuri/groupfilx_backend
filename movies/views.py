@@ -153,7 +153,7 @@ class GetAllGenresView(APIView):
 
 class AllMovieDetailsView(APIView):
     permission_classes = (permissions.IsAuthenticated,)
-    def get(self, request):
+    def post(self, request):
         try:
             user=request.user
             movie_id=request.data['movie_id']
